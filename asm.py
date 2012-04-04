@@ -28,11 +28,10 @@ op = '|'.join(
     [hexa, hexa_deref, reg_pointers, reg_deref, offset, dec, label]
 )
 l_def = ':\w+'
-
 row_pattern = '^\s*(%s)?\s*(((%s)\s+(%s)\s*,\s*(%s))|((%s)\s+(%s)))?\s*(;.*)?$'
 
-print row_pattern % (l_def, oc, op, op, noc, op)
 re_row = re.compile(row_pattern % (l_def, oc, op, op, noc, op))
+
 
 def emit_from_str(code):
     for line in code.split('\n'):
@@ -137,7 +136,6 @@ def compile(source):
             result.append(current_word)
             result.extend(to_append)
     return '\t'.join([hex(r) for r in result])
-
 
 
 if __name__ == '__main__':

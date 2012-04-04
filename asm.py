@@ -1,8 +1,5 @@
 import re
 
-# TODO:
-# add non-basic support
-
 opcodes = [
     'SET', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'AND', 'BOR',
     'XOR', 'IFE', 'IFN', 'IFG', 'IFB',
@@ -16,6 +13,7 @@ pointers = [
 ]
 
 oc = '|'.join(opcodes) # (SET|ADD|SUB|...)
+noc = '|'.join(nonbasic_opcodes)
 deref_pattern = '\[\s*%s\s*\]' # [ ? ]
 hexa = '0x[0-9a-d]{1,4}' # 0xbaba1
 hexa_deref =  deref_pattern % hexa # [ 0xbaba1 ]
@@ -30,9 +28,11 @@ op = '|'.join(
     [hexa, hexa_deref, reg_pointers, reg_deref, offset, dec, label]
 )
 l_def = ':\w+'
-row_pattern = '^\s*(%s)?\s*((%s)\s+(%s)\s*,\s*(%s))?\s*(;.*)?$'
-re_row = re.compile(row_pattern % (l_def, oc, op, op))
 
+row_pattern = '^\s*(%s)?\s*(((%s)\s+(%s)\s*,\s*(%s))|((%s)\s+(%s)))?\s*(;.*)?$'
+
+print row_pattern % (l_def, oc, op, op, noc, op)
+re_row = re.compile(row_pattern % (l_def, oc, op, op, noc, op))
 
 def emit_from_str(code):
     for line in code.split('\n'):
@@ -47,14 +47,18 @@ def emit_from_str(code):
 def emit_from_line(line):
     if line[0]:
         yield ('LABEL_DEF', line[0][1:])
-    if line[2]:
-        yield ('OPCODE', line[2])
-        for token in emit_from_op(line[3:13]):
+    if line[3]:
+        yield ('OPCODE', line[3])
+        for token in emit_from_op(line[4:14]):
             yield token
-        for token in emit_from_op(line[13:23]):
+        for token in emit_from_op(line[14:24]):
             yield token
-    if line[21]:
-        yield ('COMMENT', line[21][1:])
+    if line[24]:
+        yield ('OPCODE_NB', line[25])
+        for token in emit_from_op(line[26:36]):
+            yield token
+    if line[36]:
+        yield ('COMMENT', line[36][1:])
 
 
 def emit_from_op(op):
@@ -79,47 +83,61 @@ def compile(source):
     emitter = emit_from_str(source)
     labels = {}
     labels_to_update = {}
+    to_append = []
+
+    def get_i(o_ttype, o_token):
+        if o_ttype == 'CONST':
+            i = o_token + 0x20
+            if o_token > 0x1f:
+                i = 0x1f
+                to_append.append(o_token)
+        elif o_ttype == 'CONST_DEREF':
+            i = 0x1e
+            to_append.append(o_token)
+        elif o_ttype == 'REGISTRY':
+            i = pointers.index(o_token)
+            if i >= 8:
+                i += 0x10
+        elif o_ttype == 'REGISTRY_DEREF':
+            i = pointers.index(o_token) + 0x08
+        elif o_ttype == 'OFFSET':
+            offset, reg = o_token
+            i = pointers.index(reg) + 0x10
+            to_append.append(offset)
+        elif o_ttype == 'LABEL_USE':
+            i = 0x1f
+            addr = labels.get(o_token)
+            if addr is None:
+                pos = len(result)+1
+                labels_to_update.setdefault(o_token, []).append(pos)
+            to_append.append(addr)
+        return i
+
     for ttype, token in emitter:
-        to_append = []
+        to_append[:] = []
         if ttype == 'LABEL_DEF':
             addr = labels[token] = len(result)
             for pos in labels_to_update.get(token, []):
                 result[pos] = addr
-        if ttype == 'OPCODE':
+        elif ttype == 'OPCODE':
             current_word = opcodes.index(token) + 1
             shift = 0
             for o_ttype, o_token in [emitter.next(), emitter.next()]:
-                if o_ttype == 'CONST':
-                    i = o_token + 0x20
-                    if o_token > 0x1f:
-                        i = 0x1f
-                        to_append.append(o_token)
-                elif o_ttype == 'CONST_DEREF':
-                    i = 0x1e
-                    to_append.append(o_token)
-                elif o_ttype == 'REGISTRY':
-                    i = pointers.index(o_token)
-                    if i >= 8:
-                        i += 0x10
-                elif o_ttype == 'REGISTRY_DEREF':
-                    i = pointers.index(o_token) + 0x08
-                elif o_ttype == 'OFFSET':
-                    offset, reg = o_token
-                    i = pointers.index(reg) + 0x10
-                    to_append.append(offset)
-                elif o_ttype == 'LABEL_USE':
-                    i = 0x1f
-                    addr = labels.get(o_token)
-                    if addr is None:
-                        pos = len(result)+1
-                        labels_to_update.setdefault(o_token, []).append(pos)
-                    to_append.append(addr)
+                i = get_i(o_ttype, o_token)
                 current_word += i << (4 + 6 * shift)
                 shift += 1
             result.append(current_word)
-            if to_append:
-                result.extend(to_append)
+            result.extend(to_append)
+        elif ttype == 'OPCODE_NB':
+            index = nonbasic_opcodes.index(token) + 1
+            current_word = index << 4
+            o_ttype, o_token  = emitter.next()
+            i = get_i(o_ttype, o_token)
+            current_word += i << 10
+            result.append(current_word)
+            result.extend(to_append)
     return '\t'.join([hex(r) for r in result])
+
 
 
 if __name__ == '__main__':
@@ -139,10 +157,17 @@ if __name__ == '__main__':
                       IFN I, 0                 ; 806d
                          SET PC, loop          ; 7dc1 000d [*]
 
+        ; Call a subroutine
+                      SET X, 0x4               ; 9031
+                      JSR testsub              ; 7c10 0018 [*]
+                      SET PC, crash            ; 7dc1 001a [*]
+
+        :testsub      SHL X, 4                 ; 9037
+                      SET PC, POP              ; 61c1
+
+        ; Hang forever. X should now be 0x40 if everything went right.
         :crash        SET PC, crash            ; 7dc1 001a [*]
 
-        ; [*]: Note that these can be one word shorter and one cycle faster by using the short form (0x00-0x1f) of literals,
-        ;      but my assembler doesn't support short form labels yet.
     """
     print code
     print compile(code)

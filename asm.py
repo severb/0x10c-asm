@@ -135,7 +135,16 @@ def compile(source):
             current_word += i << 10
             result.append(current_word)
             result.extend(to_append)
-    return '\t'.join([hex(r) for r in result])
+    return result
+
+
+def pprint(words):
+    f = '%0.4x'
+    wrds = words
+    if len(words) % 8:
+        wrds = words + [0] * (8 - len(words) % 8)
+    for x in range(0, len(wrds), 8):
+        print f % x + ':', ' '.join(f % w for w in wrds[x:x+8])
 
 
 if __name__ == '__main__':
@@ -168,4 +177,5 @@ if __name__ == '__main__':
 
     """
     print code
-    print compile(code)
+    c = compile(code)
+    pprint(c)

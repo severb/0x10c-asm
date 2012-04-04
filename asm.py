@@ -1,12 +1,14 @@
 import re
 
 # TODO:
-# add labels
 # add non-basic support
 
 opcodes = [
     'SET', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'AND', 'BOR',
     'XOR', 'IFE', 'IFN', 'IFG', 'IFB',
+]
+nonbasic_opcodes = [
+    'JSR'
 ]
 pointers = [
     'A', 'B', 'C', 'X', 'Y', 'Z', 'I', 'J',
@@ -75,8 +77,14 @@ def emit_from_op(op):
 def compile(source):
     result = []
     emitter = emit_from_str(source)
+    labels = {}
+    labels_to_update = {}
     for ttype, token in emitter:
         to_append = []
+        if ttype == 'LABEL_DEF':
+            addr = labels[token] = len(result)
+            for pos in labels_to_update.get(token, []):
+                result[pos] = addr
         if ttype == 'OPCODE':
             current_word = opcodes.index(token) + 1
             shift = 0
@@ -99,6 +107,13 @@ def compile(source):
                     offset, reg = o_token
                     i = pointers.index(reg) + 0x10
                     to_append.append(offset)
+                elif o_ttype == 'LABEL_USE':
+                    i = 0x1f
+                    addr = labels.get(o_token)
+                    if addr is None:
+                        pos = len(result)+1
+                        labels_to_update.setdefault(o_token, []).append(pos)
+                    to_append.append(addr)
                 current_word += i << (4 + 6 * shift)
                 shift += 1
             result.append(current_word)
@@ -109,18 +124,25 @@ def compile(source):
 
 if __name__ == '__main__':
     code = """
-        SET A, 0x30
-        SET [0x1000], 0x20
-        SUB A, [0x1000]
-        SET A, 0x2000
-        SET [0x2000+I], [A]
-        SET PC, POP
-        IFN A, 0x10              ; c00d 
-        IFN I, 0x0               ; 806d
-        SHL X, 0x4               ; 9037
-        SHL X, 4                 ; 9037
-        IFN I, 0                 ; 806d
-        IFN I, 10000
+        ; Try some basic stuff
+                      SET A, 0x30              ; 7c01 0030
+                      SET [0x1000], 0x20       ; 7de1 1000 0020
+                      SUB A, [0x1000]          ; 7803 1000
+                      IFN A, 0x10              ; c00d
+                         SET PC, crash         ; 7dc1 001a [*]
+
+        ; Do a loopy thing
+                      SET I, 10                ; a861
+                      SET A, 0x2000            ; 7c01 2000
+        :loop         SET [0x2000+I], [A]      ; 2161 2000
+                      SUB I, 1                 ; 8463
+                      IFN I, 0                 ; 806d
+                         SET PC, loop          ; 7dc1 000d [*]
+
+        :crash        SET PC, crash            ; 7dc1 001a [*]
+
+        ; [*]: Note that these can be one word shorter and one cycle faster by using the short form (0x00-0x1f) of literals,
+        ;      but my assembler doesn't support short form labels yet.
     """
     print code
     print compile(code)

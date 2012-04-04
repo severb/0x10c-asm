@@ -2,7 +2,6 @@ import re
 
 # TODO:
 # add support for base 10 constants
-# add optimization for small int
 # add labels
 # add non-basic support
 
@@ -10,37 +9,25 @@ opcodes = [
     'SET', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'AND', 'BOR',
     'XOR', 'IFE', 'IFN', 'IFG', 'IFB',
 ]
-
 pointers = [
     'A', 'B', 'C', 'X', 'Y', 'Z', 'I', 'J',
     'POP', 'PEEK', 'PUSH', 'SP', 'PC', 'O',
 ]
 
 oc = '|'.join(opcodes) # (SET|ADD|SUB|...)
-
-deref_pattern = '\[\s*%s\s*\]'
-
-hexa = '0x[0-9a-d]{1,4}'
-re_hexa = re.compile(hexa)
-
-hexa_deref =  deref_pattern % hexa
-
+deref_pattern = '\[\s*%s\s*\]' # [ ? ]
+hexa = '0x[0-9a-d]{1,4}' # 0xbaba1
+hexa_deref =  deref_pattern % hexa # [ 0xbaba1 ]
 reg_pointers = '|'.join(pointers) # A|B|C
-
 reg_deref = '|'.join(deref_pattern % reg for reg in pointers[:8]) # [A]|[B]
-
-hexa_plus_reg = '(%s)\s*\+\s*(%s)' % (hexa, reg_pointers)
-offset = deref_pattern % hexa_plus_reg
-
+hexa_plus_reg = '(%s)\s*\+\s*(%s)' % (hexa, '|'.join(pointers[:8])) # 0xb1 + I
+offset = deref_pattern % hexa_plus_reg # [ 0xb1 + I ]
 label = '\w+'
-
 op = '|'.join(
     '(%s)' % x for x in
     [hexa, hexa_deref, reg_pointers, reg_deref, offset, label]
 )
-
 l_def = ':\w+'
-
 row_pattern = '^\s*(%s)?\s*((%s)\s+(%s)\s*,\s*(%s))?\s*(;.*)?$'
 re_row = re.compile(row_pattern % (l_def, oc, op, op))
 

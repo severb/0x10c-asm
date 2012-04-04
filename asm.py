@@ -38,7 +38,6 @@ def emit_from_str(code):
         if parsed_line is None:
             print 'error found on line: %s' % line
             exit(1)
-        print line
         for token in emit_from_line(parsed_line.groups()):
             yield token
 
@@ -59,17 +58,17 @@ def emit_from_line(line):
 def emit_from_op(op):
     if op[1]:
         yield ('CONST', int(op[1], 0))
-    if op[2]:
+    elif op[2]:
         yield ('CONST_DEREF', int(op[2][1:-1], 0))
-    if op[3]:
+    elif op[3]:
         yield ('REGISTRY', op[3])
-    if op[4]:
+    elif op[4]:
         yield ('REGISTRY_DEREF', op[4][1:-1])
-    if op[5]:
+    elif op[5]:
         yield ('OFFSET', (int(op[6], 0), op[7]))
-    if op[8]:
+    elif op[8]:
         yield ('CONST', int(op[8]))
-    if op[9]:
+    elif op[9]:
         yield ('LABEL_USE', op[9])
 
 
@@ -123,4 +122,5 @@ if __name__ == '__main__':
         IFN I, 0                 ; 806d
         IFN I, 10000
     """
+    print code
     print compile(code)

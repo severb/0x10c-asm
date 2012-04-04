@@ -1,7 +1,6 @@
 import re
 
 # TODO:
-# add support for base 10 constants
 # add labels
 # add non-basic support
 
@@ -23,9 +22,10 @@ reg_deref = '|'.join(deref_pattern % reg for reg in pointers[:8]) # [A]|[B]
 hexa_plus_reg = '(%s)\s*\+\s*(%s)' % (hexa, '|'.join(pointers[:8])) # 0xb1 + I
 offset = deref_pattern % hexa_plus_reg # [ 0xb1 + I ]
 label = '\w+'
+dec = '\d+'
 op = '|'.join(
     '(%s)' % x for x in
-    [hexa, hexa_deref, reg_pointers, reg_deref, offset, label]
+    [hexa, hexa_deref, reg_pointers, reg_deref, offset, dec, label]
 )
 l_def = ':\w+'
 row_pattern = '^\s*(%s)?\s*((%s)\s+(%s)\s*,\s*(%s))?\s*(;.*)?$'
@@ -48,9 +48,9 @@ def emit_from_line(line):
         yield ('LABEL_DEF', line[0][1:])
     if line[2]:
         yield ('OPCODE', line[2])
-        for token in emit_from_op(line[3:12]):
+        for token in emit_from_op(line[3:13]):
             yield token
-        for token in emit_from_op(line[12:21]):
+        for token in emit_from_op(line[13:23]):
             yield token
     if line[21]:
         yield ('COMMENT', line[21][1:])
@@ -68,7 +68,9 @@ def emit_from_op(op):
     if op[5]:
         yield ('OFFSET', (int(op[6], 0), op[7]))
     if op[8]:
-        yield ('LABEL_USE', op[8])
+        yield ('CONST', int(op[8]))
+    if op[9]:
+        yield ('LABEL_USE', op[9])
 
 
 def compile(source):
@@ -117,5 +119,8 @@ if __name__ == '__main__':
         IFN A, 0x10              ; c00d 
         IFN I, 0x0               ; 806d
         SHL X, 0x4               ; 9037
+        SHL X, 4                 ; 9037
+        IFN I, 0                 ; 806d
+        IFN I, 10000
     """
     print compile(code)

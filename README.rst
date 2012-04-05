@@ -1,7 +1,7 @@
 ``0x10c-asm`` assembly compiler for Notch's DCPU-16
 ---------------------------------------------------
 
-Install from Pypi:
+Install from PyPI:
 ==================
 
   pip install 0x10c-asm

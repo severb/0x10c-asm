@@ -11,7 +11,7 @@ setup(
     keywords='notch asm dcpu-16 dcpu assembly asm',
     author='Sever Banesiu',
     author_email='banesiu.sever@gmail.com',
-    url='https://github.com/severb/graypy',
+    url='https://github.com/severb/0x10c-asm',
     license='BSD License',
     scripts=['0x10c-asm.py'],
     zip_safe=False,

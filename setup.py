@@ -13,7 +13,7 @@ setup(
     author_email='banesiu.sever@gmail.com',
     url='https://github.com/severb/graypy',
     license='BSD License',
-    scripts=['0x10-asm.py'],
+    scripts=['0x10c-asm.py'],
     zip_safe=False,
 
 )

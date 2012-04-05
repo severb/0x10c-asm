@@ -4,7 +4,6 @@ import re
 import argparse
 import sys
 import struct
-from array import array
 
 opcodes = [
     'SET', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'AND', 'BOR',

@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
 
-    name='0x10-asm',
+    name='0x10c-asm',
     version='0.0.1',
     description="A simple Python-based DCPU assembly compiler",
     long_description=open('README.rst').read(),

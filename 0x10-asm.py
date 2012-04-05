@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 import re
+import argparse
+import sys
+import struct
+from array import array
 
 opcodes = [
     'SET', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'AND', 'BOR',
@@ -14,15 +18,15 @@ pointers = [
     'POP', 'PEEK', 'PUSH', 'SP', 'PC', 'O',
 ]
 
-oc = '|'.join(opcodes) # (SET|ADD|SUB|...)
+oc = '|'.join(opcodes)  # (SET|ADD|SUB|...)
 noc = '|'.join(nonbasic_opcodes)
-deref_pattern = '\[\s*%s\s*\]' # [ ? ]
-hexa = '0x[0-9a-d]{1,4}' # 0xbaba1
-hexa_deref =  deref_pattern % hexa # [ 0xbaba1 ]
-reg_pointers = '|'.join(pointers) # A|B|C
-reg_deref = '|'.join(deref_pattern % reg for reg in pointers[:8]) # [A]|[B]
-hexa_plus_reg = '(%s)\s*\+\s*(%s)' % (hexa, '|'.join(pointers[:8])) # 0xb1 + I
-offset = deref_pattern % hexa_plus_reg # [ 0xb1 + I ]
+deref_pattern = '\[\s*%s\s*\]'  # [ ? ]
+hexa = '0x[0-9a-d]{1,4}'  # 0xbaba1
+hexa_deref = deref_pattern % hexa  # [ 0xbaba1 ]
+reg_pointers = '|'.join(pointers)  # A|B|C
+reg_deref = '|'.join(deref_pattern % reg for reg in pointers[:8])  # [A]|[B]
+hexa_plus_reg = '(%s)\s*\+\s*(%s)' % (hexa, '|'.join(pointers[:8]))  # 0xb1 + I
+offset = deref_pattern % hexa_plus_reg  # [ 0xb1 + I ]
 label = '\w+'
 dec = '\d+'
 op = '|'.join(
@@ -109,7 +113,7 @@ def compile(source):
             i = 0x1f
             addr = labels.get(o_token)
             if addr is None:
-                pos = len(result)+1
+                pos = len(result) + 1
                 labels_to_update.setdefault(o_token, []).append(pos)
             to_append.append(addr)
         return i
@@ -132,7 +136,7 @@ def compile(source):
         elif ttype == 'OPCODE_NB':
             index = nonbasic_opcodes.index(token) + 1
             current_word = index << 4
-            o_ttype, o_token  = emitter.next()
+            o_ttype, o_token = emitter.next()
             i = get_i(o_ttype, o_token)
             current_word += i << 10
             result.append(current_word)
@@ -146,38 +150,33 @@ def pprint(words):
     if len(words) % 8:
         wrds = words + [0] * (8 - len(words) % 8)
     for x in range(0, len(wrds), 8):
-        print f % x + ':', ' '.join(f % w for w in wrds[x:x+8])
+        print f % x + ':', ' '.join(f % w for w in wrds[x:x + 8])
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='A simple Python-based DCPU assembly compiler'
+     )
+    parser.add_argument(
+        'source', metavar='IN', type=str, nargs=1,
+        help='file path of the file containing the assembly code'
+    )
+    parser.add_argument(
+        'destination', metavar='OUT', type=str, nargs='?',
+        help='file path where to store the binary code'
+    )
+    args = parser.parse_args()
+
+    c = compile(open(args.source[0]).read())
+    if args.destination is None:
+        return pprint(c)
+
+    assert sys.byteorder == 'little'
+    out = open(args.destination, 'wb')
+    c = [struct.pack('>H', b) for b in c]
+    out.write(''.join(c))
+    out.close()
 
 
 if __name__ == '__main__':
-    code = """
-        ; Try some basic stuff
-                      SET A, 0x30              ; 7c01 0030
-                      SET [0x1000], 0x20       ; 7de1 1000 0020
-                      SUB A, [0x1000]          ; 7803 1000
-                      IFN A, 0x10              ; c00d
-                         SET PC, crash         ; 7dc1 001a [*]
-
-        ; Do a loopy thing
-                      SET I, 10                ; a861
-                      SET A, 0x2000            ; 7c01 2000
-        :loop         SET [0x2000+I], [A]      ; 2161 2000
-                      SUB I, 1                 ; 8463
-                      IFN I, 0                 ; 806d
-                         SET PC, loop          ; 7dc1 000d [*]
-
-        ; Call a subroutine
-                      SET X, 0x4               ; 9031
-                      JSR testsub              ; 7c10 0018 [*]
-                      SET PC, crash            ; 7dc1 001a [*]
-
-        :testsub      SHL X, 4                 ; 9037
-                      SET PC, POP              ; 61c1
-
-        ; Hang forever. X should now be 0x40 if everything went right.
-        :crash        SET PC, crash            ; 7dc1 001a [*]
-
-    """
-    print code
-    c = compile(code)
-    pprint(c)
+    main()

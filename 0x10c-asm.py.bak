@@ -42,7 +42,7 @@ def emit_from_str(code):
     for line in code.split('\n'):
         parsed_line = re_row.match(line)
         if parsed_line is None:
-            print(('error found on line: %s' % line))
+            print('error found on line: %s' % line)
             exit(1)
         for token in emit_from_line(parsed_line.groups()):
             yield token
@@ -149,7 +149,7 @@ def pprint(words):
     if len(words) % 8:
         wrds = words + [0] * (8 - len(words) % 8)
     for x in range(0, len(wrds), 8):
-        print((f % x + ':', ' '.join(f % w for w in wrds[x:x + 8])))
+        print(f % x + ':', ' '.join(f % w for w in wrds[x:x + 8]))
 
 
 def main():
